@@ -1,0 +1,8 @@
+numpy
+pandas
+nltk
+scikit-learn
+chardet
+joblib
+collections-extended
+regex
