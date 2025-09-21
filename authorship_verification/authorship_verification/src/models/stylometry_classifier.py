@@ -7,9 +7,10 @@ from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.svm import SVC
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, cross_val_score
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import classification_report, accuracy_score
+from sklearn.calibration import CalibratedClassifierCV
 from sklearn.base import BaseEstimator, TransformerMixin
 import nltk
 from collections import Counter
@@ -20,13 +21,21 @@ warnings.filterwarnings('ignore')
 
 # Download NLTK data
 try:
+    nltk.data.find('tokenizers/punkt_tab')
+except LookupError:
+    print("Downloading NLTK punkt_tab...")
+    nltk.download('punkt_tab')
+
+try:
     nltk.data.find('tokenizers/punkt')
 except LookupError:
+    print("Downloading NLTK punkt...")
     nltk.download('punkt')
 
 try:
     nltk.data.find('corpora/stopwords')
 except LookupError:
+    print("Downloading NLTK stopwords...")
     nltk.download('stopwords')
 
 from nltk.corpus import stopwords
@@ -73,14 +82,20 @@ class StylometryFeatures(BaseEstimator, TransformerMixin):
         return np.array(features)
     
     def _get_features(self, text):
-        """Extract 15 key stylometric features"""
-        if not text:
+        """Extract 15 key stylometric features with better normalization"""
+        if not text or len(text.strip()) < 10:
             return [0] * 15
         
-        # Tokenize
-        sentences = sent_tokenize(text)
-        words = word_tokenize(text.lower())
-        words = [w for w in words if w.isalpha()]
+        # Tokenize with error handling
+        try:
+            sentences = sent_tokenize(text)
+            words = word_tokenize(text.lower())
+            words = [w for w in words if w.isalpha()]
+        except:
+            # Fallback to simple regex splitting
+            sentences = re.split(r'[.!?]+', text)
+            sentences = [s.strip() for s in sentences if s.strip()]
+            words = re.findall(r'\b[a-zA-Z]+\b', text.lower())
         
         if not words or not sentences:
             return [0] * 15
@@ -90,51 +105,80 @@ class StylometryFeatures(BaseEstimator, TransformerMixin):
         word_count = len(words)
         sentence_count = len(sentences)
         
-        # Calculate features
+        # Add small epsilon to prevent division issues
+        epsilon = 1e-8
+        
+        # Calculate features with better normalization
         features = [
-            char_count,
-            word_count, 
-            sentence_count,
-            word_count / sentence_count,  # avg words per sentence
+            np.log(char_count + 1),  # Log transform for char count
+            np.log(word_count + 1),  # Log transform for word count
+            np.log(sentence_count + 1),  # Log transform for sentence count
+            word_count / (sentence_count + epsilon),  # avg words per sentence
             np.mean([len(w) for w in words]),  # avg word length
-            len(set(words)) / word_count,  # lexical diversity
-            sum(1 for w in words if w in self.stop_words) / word_count,  # function words
-            text.count('!') / char_count,  # exclamation ratio
-            text.count('?') / char_count,  # question ratio
-            text.count(',') / char_count,  # comma ratio
-            sum(1 for c in text if c.isupper()) / char_count,  # uppercase ratio
-            sum(1 for w in words if len(w) <= 3) / word_count,  # short words
-            sum(1 for w in words if len(w) >= 7) / word_count,  # long words
-            sum(1 for freq in Counter(words).values() if freq == 1) / word_count,  # hapax legomena
-            text.count('"') / char_count,  # quotation ratio
+            len(set(words)) / (word_count + epsilon),  # lexical diversity
+            sum(1 for w in words if w in self.stop_words) / (word_count + epsilon),  # function words
+            text.count('!') / (char_count + epsilon),  # exclamation ratio
+            text.count('?') / (char_count + epsilon),  # question ratio
+            text.count(',') / (char_count + epsilon),  # comma ratio
+            sum(1 for c in text if c.isupper()) / (char_count + epsilon),  # uppercase ratio
+            sum(1 for w in words if len(w) <= 3) / (word_count + epsilon),  # short words
+            sum(1 for w in words if len(w) >= 7) / (word_count + epsilon),  # long words
+            sum(1 for freq in Counter(words).values() if freq == 1) / (word_count + epsilon),  # hapax legomena
+            text.count('"') / (char_count + epsilon),  # quotation ratio
         ]
         
         return features
 
 class SimpleStylometryClassifier:
-    """Simple stylometry classifier for your exact use case"""
+    """Improved stylometry classifier with reduced overconfidence"""
     
-    def __init__(self, model_type='logistic', max_features=3000):
+    def __init__(self, model_type='logistic', max_features=2000, use_calibration=True):
         self.model_type = model_type
         self.max_features = max_features
+        self.use_calibration = use_calibration
         
         # Components
         self.stylometry_extractor = StylometryFeatures()
         self.text_vectorizer = TfidfVectorizer(
             max_features=max_features,
-            ngram_range=(1, 2),  # Reduced for speed
+            ngram_range=(1, 2),
             stop_words='english',
-            lowercase=True
+            lowercase=True,
+            min_df=3,  # Ignore rare terms
+            max_df=0.95  # Ignore very common terms
         )
         self.scaler = StandardScaler()
         
-        # Model
+        # Model with regularization
         if model_type == 'logistic':
-            self.model = LogisticRegression(random_state=42, max_iter=1000)
+            # Add strong regularization to reduce overconfidence
+            base_model = LogisticRegression(
+                random_state=42, 
+                max_iter=1000,
+                C=0.1,  # Strong L2 regularization
+                class_weight='balanced'  # Handle class imbalance
+            )
         elif model_type == 'svm':
-            self.model = SVC(probability=True, random_state=42)
+            base_model = SVC(
+                probability=True, 
+                random_state=42, 
+                C=0.1,  # Strong regularization
+                class_weight='balanced'
+            )
         elif model_type == 'rf':
-            self.model = RandomForestClassifier(n_estimators=100, random_state=42)
+            base_model = RandomForestClassifier(
+                n_estimators=100, 
+                random_state=42,
+                max_depth=10,  # Prevent overfitting
+                min_samples_split=10,  # Prevent overfitting
+                class_weight='balanced'
+            )
+        
+        # Use calibration to improve probability estimates
+        if use_calibration:
+            self.model = CalibratedClassifierCV(base_model, method='sigmoid', cv=3)
+        else:
+            self.model = base_model
     
     def fit(self, texts, labels):
         """Train the classifier"""
@@ -181,7 +225,7 @@ class SimpleStylometryClassifier:
         return model
 
 def train_stylometry_classifier(data_path, model_save_path='models/saved/stylometry.pkl', test_size=0.2):
-    """Complete training pipeline"""
+    """Complete training pipeline with overconfidence fixes"""
     
     # Load data
     texts, labels = load_jsonl_data(data_path)
@@ -195,8 +239,12 @@ def train_stylometry_classifier(data_path, model_save_path='models/saved/stylome
     print(f"Training samples: {len(X_train)}")
     print(f"Test samples: {len(X_test)}")
     
-    # Train classifier
-    classifier = SimpleStylometryClassifier(model_type='logistic', max_features=3000)
+    # Train classifier with regularization and calibration
+    classifier = SimpleStylometryClassifier(
+        model_type='logistic', 
+        max_features=2000,  # Reduced to prevent overfitting
+        use_calibration=True  # Calibrate probabilities
+    )
     classifier.fit(X_train, y_train)
     
     # Evaluate
@@ -210,8 +258,30 @@ def train_stylometry_classifier(data_path, model_save_path='models/saved/stylome
     print(f"\n🎯 Results:")
     print(f"Training Accuracy: {train_acc:.4f}")
     print(f"Test Accuracy: {test_acc:.4f}")
+    print(f"Gap (overfitting check): {train_acc - test_acc:.4f}")
+    
+    # Analyze confidence distribution
+    max_probs = np.max(test_probs, axis=1)
+    print(f"\nConfidence Analysis:")
+    print(f"Mean max probability: {np.mean(max_probs):.4f}")
+    print(f"Std max probability: {np.std(max_probs):.4f}")
+    print(f"% predictions >0.9 confidence: {np.mean(max_probs > 0.9)*100:.1f}%")
+    print(f"% predictions >0.99 confidence: {np.mean(max_probs > 0.99)*100:.1f}%")
+    
     print(f"\n📋 Classification Report:")
     print(classification_report(y_test, test_pred))
+    
+    # Cross-validation for robustness check
+    cv_scores = cross_val_score(classifier.model, 
+                               classifier.scaler.transform(
+                                   np.hstack([
+                                       classifier.stylometry_extractor.transform(X_train),
+                                       classifier.text_vectorizer.transform(X_train).toarray()
+                                   ])
+                               ), 
+                               y_train, cv=5, scoring='accuracy')
+    print(f"\n🔄 Cross-validation scores: {cv_scores}")
+    print(f"CV mean: {cv_scores.mean():.4f} (+/- {cv_scores.std() * 2:.4f})")
     
     # Save model
     classifier.save_model(model_save_path)
