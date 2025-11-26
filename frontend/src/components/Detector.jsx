@@ -1,9 +1,13 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import '../index.css';
 
-const API_URL = "http://127.0.0.1:8000/predict"; // ✅ Correct FastAPI endpoint
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
 
-// 🧠 Local heuristic fallback
+const API_URL = "http://127.0.0.1:8000/predict"; // FastAPI endpoint
+
+// -------------------- Heuristic fallback (kept & reused) --------------------
 function localHeuristicDetect(text) {
   const words = text.trim().split(/\s+/).filter(Boolean);
   const sentences = text.split(/[.!?]/).filter(s => s.trim().length > 0);
@@ -44,17 +48,20 @@ function localHeuristicDetect(text) {
 
 function computePerplexity(text) {
   const words = text.toLowerCase().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return 0;
   const wordCounts = {};
   words.forEach(word => {
     wordCounts[word] = (wordCounts[word] || 0) + 1;
   });
   let totalLogProb = 0;
   words.forEach(word => {
-    const prob = wordCounts[word] / words.length;
+    const prob = (wordCounts[word] || 1) / words.length;
     totalLogProb += Math.log(prob);
   });
-  const perplexity = Math.exp(-totalLogProb / words.length);
-  return Math.min(1, Math.max(0, 1 - (perplexity / 100)));
+  const rawPerplexity = Math.exp(-totalLogProb / words.length);
+  const capped = Math.min(rawPerplexity, 200);
+  const normalized = 1 - capped / 200;
+  return Math.max(0, Math.min(1, normalized));
 }
 
 function computeNgramDupRate(text, n = 3) {
@@ -74,15 +81,16 @@ function computeNgramDupRate(text, n = 3) {
   return total === 0 ? 0 : duplicates / total;
 }
 
+// -------------------- UI subcomponents --------------------
 function ProgressPieChart({ score = 0, label = 'Unknown' }) {
   const aiPct = Math.round((score ?? 0) * 100);
-  const chartStyle = { '--ai-percentage': `${aiPct}%` };
+  const chartStyle = { ['--ai-percentage']: `${aiPct}%` };
+  const cls = `progress-pie-chart ${label === 'AI' ? 'ai' : label === 'Human' ? 'human' : ''}`;
   return (
-    <div className={`progress-pie-chart ${label.toLowerCase()}`} style={chartStyle}>
+    <div className={cls} style={chartStyle} role="img" aria-label={`AI likelihood ${aiPct} percent`}>
       <div className="label">
         <h3>{aiPct}%</h3>
         <span>{label === 'AI' ? 'AI Score' : 'Human Score'}</span>
-
       </div>
     </div>
   );
@@ -107,23 +115,41 @@ function SignalRow({ name, value = 0, invert = false, description }) {
   );
 }
 
+// -------------------- Main Detector --------------------
 export default function Detector() {
+  // component state + refs
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [history, setHistory] = useState([]);
+  const [selectedId, setSelectedId] = useState(null);
+  const [showResultPanel, setShowResultPanel] = useState(false);
+
+
   const fileInputRef = useRef(null);
   const resultPanelRef = useRef(null);
+  const inputPanelRef = useRef(null);
 
   useEffect(() => {
     const saved = window.localStorage.getItem('detector_history_v2');
-    if (saved) setHistory(JSON.parse(saved));
+    if (saved) {
+      try {
+        setHistory(JSON.parse(saved));
+      } catch (e) {
+        console.warn('Could not parse history', e);
+      }
+    }
   }, []);
 
   useEffect(() => {
-    window.localStorage.setItem('detector_history_v2', JSON.stringify(history));
+    try {
+      window.localStorage.setItem('detector_history_v2', JSON.stringify(history));
+    } catch (e) {
+      // ignore storage errors
+    }
   }, [history]);
 
+  // File upload handler (keeps original behavior)
   function handleFileChange(e) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -131,8 +157,10 @@ export default function Detector() {
     reader.onload = ev => setText(String(ev.target.result));
     reader.onerror = () => alert('Could not read file');
     reader.readAsText(file);
+    e.target.value = ''; // reset so same file can be selected again
   }
 
+  // runDetection: call backend and fallback to heuristic on error (keeps original behavior)
   async function runDetection() {
     if (!text.trim()) {
       alert('Please paste or enter some text to analyze.');
@@ -143,59 +171,463 @@ export default function Detector() {
 
     try {
       let out;
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10_000);
+
       const resp = await fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text })
+        body: JSON.stringify({ text }),
+        signal: controller.signal
       });
 
-      if (!resp.ok) throw new Error(`API returned ${resp.status}`);
-      const data = await resp.json();
+      clearTimeout(timeout);
 
-      // ✅ Match backend response structure
-      out = {
-        label: data.prediction || 'Unknown',
-        score: typeof data.confidence === 'number' ? data.confidence : null,
-        explanation: `Entropy: ${data.entropy?.toFixed(3)} | Words: ${data.word_count}`,
-        signals: {
-          repetitiveness: data.probabilities?.AI ?? 0,
-          punctuationRate: data.entropy ?? 0,
-          perplexityScore: data.probabilities?.Human ?? 0,
-          indicator: data.prediction === 'AI'
+      if (!resp.ok) {
+        const heuristic = localHeuristicDetect(text);
+        out = {
+          ...heuristic,
+          explanation: `API returned ${resp.status}. Fallback -> ${heuristic.explanation}`
+        };
+      } else {
+        const data = await resp.json();
+
+        const prediction = data.prediction ?? data.label ?? data.predicted_label ?? null;
+        const confidence = typeof data.confidence === 'number' ? data.confidence : (typeof data.probability === 'number' ? data.probability : null);
+
+        if (prediction && typeof confidence === 'number') {
+          out = {
+            label: prediction,
+            score: Math.max(0, Math.min(1, confidence)),
+            explanation: `Entropy: ${typeof data.entropy === 'number' ? data.entropy.toFixed(3) : 'N/A'} | Words: ${data.word_count ?? 'N/A'}`,
+            signals: {
+              repetitiveness: (data.probabilities?.AI ?? data.probs?.AI ?? data.probs?.ai ?? 0),
+              punctuationRate: data.entropy ?? 0,
+              perplexityScore: (data.probabilities?.Human ?? data.probs?.Human ?? data.probs?.human ?? 0),
+              indicator: (prediction === 'AI' || prediction?.toLowerCase?.() === 'ai')
+            }
+          };
+        } else {
+          const heuristic = localHeuristicDetect(text);
+          out = {
+            ...heuristic,
+            explanation: `Backend returned unexpected shape. Fallback -> ${heuristic.explanation}`
+          };
         }
-      };
+      }
 
       out.timestamp = new Date().toISOString();
       out.fullText = text;
       setResult(out);
       setHistory(h => [{ id: Date.now(), ...out }, ...h].slice(0, 50));
-      resultPanelRef.current.scrollIntoView({ behavior: 'smooth' });
+      setSelectedId(null);
+      setShowResultPanel(true);
+      resultPanelRef.current?.scrollIntoView({ behavior: 'smooth' });
     } catch (err) {
       console.error(err);
-      alert('Detection failed: ' + (err.message || err));
+      const heuristic = localHeuristicDetect(text);
+      const out = {
+        ...heuristic,
+        explanation: `Network/API error (${err?.name || err?.message}). Fallback -> ${heuristic.explanation}`
+      };
+      out.timestamp = new Date().toISOString();
+      out.fullText = text;
+      setResult(out);
+      setHistory(h => [{ id: Date.now(), ...out }, ...h].slice(0, 50));
+      setSelectedId(null);
+      setShowResultPanel(true);
     } finally {
       setLoading(false);
     }
   }
 
+  // clearAll: reset input and result (keeps original behavior)
   function clearAll() {
     setText('');
     setResult(null);
+    setSelectedId(null);
+    setShowResultPanel(false);
   }
 
   function clearHistory() {
     if (window.confirm('Clear all history?')) setHistory([]);
   }
 
+  // -------------------- PDF Export logic (optimized for smaller size) --------------------
+
+  // Updated handleExportPDF: preserves full styles/colors by copying page styles and CSS variables
+  // into the offscreen export container before rendering with html2canvas.
+
+  async function handleExportPDF() {
+    if (!result) {
+      alert('No analysis result to export. Run detection first.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Wait for fonts (best-effort)
+      if (document && document.fonts && typeof document.fonts.ready !== 'undefined') {
+        try { await document.fonts.ready; } catch (e) { /* ignore */ }
+      }
+
+      const resultNode = resultPanelRef.current;
+      const inputNode = inputPanelRef.current;
+      if (!resultNode || !inputNode) {
+        alert('Could not find UI sections to export.');
+        return;
+      }
+
+      // Create offscreen container
+      const offscreen = document.createElement('div');
+      offscreen.id = 'pdf-export-container';
+
+      // Keep width limited (smaller => smaller images)
+      const targetWidth = Math.min(document.documentElement.clientWidth - 48, 900);
+      offscreen.style.position = 'fixed';
+      offscreen.style.left = '-9999px';
+      offscreen.style.top = '0';
+      offscreen.style.width = `${targetWidth}px`;
+      offscreen.style.zIndex = '99999';
+      offscreen.style.background = getComputedStyle(document.body).background || '#ffffff';
+      offscreen.style.color = getComputedStyle(document.body).color || '#0f172a';
+      offscreen.style.boxSizing = 'border-box';
+
+      // Copy stylesheets and <style> nodes into the offscreen container so the cloned markup renders exactly
+      // the same (colors, gradients, variables, animations) as the page.
+      try {
+        const headNodes = Array.from(document.head.querySelectorAll('link[rel="stylesheet"], style'));
+        headNodes.forEach(node => {
+          if (node.tagName.toLowerCase() === 'link') {
+            // clone link to keep href (this will cause the stylesheet to load for the offscreen subtree)
+            const ln = document.createElement('link');
+            ln.rel = 'stylesheet';
+            ln.href = node.href;
+            // preserve integrity/crossorigin if present
+            if (node.integrity) ln.integrity = node.integrity;
+            if (node.crossOrigin) ln.crossOrigin = node.crossOrigin;
+            offscreen.appendChild(ln);
+          } else {
+            // style element: clone contents
+            const st = document.createElement('style');
+            st.textContent = node.textContent;
+            offscreen.appendChild(st);
+          }
+        });
+      } catch (e) {
+        // Some stylesheets could be cross-origin and reading rules may fail; copying links above is the more compatible approach.
+        console.warn('Could not clone all stylesheets into export container', e);
+      }
+
+
+
+      // Compose wrapper and copy computed CSS variables from :root so variables (eg. --primary) are available
+      const wrapper = document.createElement('div');
+      wrapper.style.padding = '18px';
+      wrapper.style.boxSizing = 'border-box';
+      wrapper.style.background = getComputedStyle(document.body).background || '#ffffff';
+      wrapper.style.color = getComputedStyle(document.body).color || '#0f172a';
+      wrapper.style.fontFamily = getComputedStyle(document.documentElement).fontFamily || 'Inter, Arial, sans-serif';
+
+      // copy all CSS custom properties from root and body so colors/margins/etc. are preserved
+      try {
+        const rootComputed = getComputedStyle(document.documentElement);
+        for (let i = 0; i < rootComputed.length; i++) {
+          const prop = rootComputed[i];
+          if (prop && prop.startsWith('--')) {
+            const val = rootComputed.getPropertyValue(prop);
+            if (val) wrapper.style.setProperty(prop, val);
+          }
+        }
+        const bodyComputed = getComputedStyle(document.body);
+        for (let i = 0; i < bodyComputed.length; i++) {
+          const prop = bodyComputed[i];
+          if (prop && prop.startsWith('--')) {
+            const val = bodyComputed.getPropertyValue(prop);
+            if (val) wrapper.style.setProperty(prop, val);
+          }
+        }
+      } catch (e) {
+        console.warn('Could not copy CSS variables into export wrapper', e);
+      }
+
+      // Title (keeps same look)
+      const titleDiv = document.createElement('div');
+      titleDiv.innerText = 'AI Content Detector';
+      titleDiv.style.fontFamily = getComputedStyle(document.body).fontFamily || 'Inter, Arial, sans-serif';
+      titleDiv.style.fontWeight = '700';
+      titleDiv.style.fontSize = '26px';
+      titleDiv.style.textAlign = 'center';
+      titleDiv.style.margin = '6px 0 12px 0';
+      titleDiv.style.color = getComputedStyle(document.body).color || '#0f172a';
+      wrapper.appendChild(titleDiv);
+
+      // Clone and sanitize the result panel so it's not interactive
+      const clonedResult = resultNode.cloneNode(true);
+      // Remove attributes that could interfere, disable interactive controls
+      clonedResult.querySelectorAll('button,input,textarea,select').forEach((el) => {
+        try {
+          el.removeAttribute('autofocus');
+          el.setAttribute('disabled', 'disabled');
+        } catch (e) { /* ignore */ }
+      });
+
+      // Ensure any dynamic inline canvases or svgs used for the gauge are rendered as-is:
+      // If the progress pie uses a canvas element we should keep it; if it's SVG or styled divs, cloning keeps it.
+
+      // Clone input panel and replace textarea with preserved text block
+      const clonedInput = inputNode.cloneNode(true);
+      const ta = clonedInput.querySelector('textarea');
+      if (ta) {
+        const display = document.createElement('div');
+        display.className = 'text-area heuristic-text';
+        display.innerText = text;
+        ta.parentNode.replaceChild(display, ta);
+      } else {
+        const display = document.createElement('div');
+        display.className = 'text-area heuristic-text';
+        display.innerText = text;
+        clonedInput.appendChild(display);
+      }
+
+      // Remove interactive controls that are irrelevant in export
+      clonedInput.querySelectorAll('input[type="file"], button.file-btn, .panel-actions').forEach(n => {
+        if (n && n.parentNode) n.parentNode.removeChild(n);
+      });
+
+      // Append cloned panels to wrapper (preserves layout classes)
+      wrapper.appendChild(clonedResult);
+      const sep = document.createElement('div');
+      sep.style.height = '12px';
+      wrapper.appendChild(sep);
+      wrapper.appendChild(clonedInput);
+
+      // Append wrapper to offscreen (stylesheets were appended earlier)
+      offscreen.appendChild(wrapper);
+      document.body.appendChild(offscreen);
+
+      // Allow layout and external CSS to load (short delay)
+      await new Promise(resolve => setTimeout(resolve, 200));
+
+      // Render with html2canvas - useCORS true and reasonable scale
+      const renderScale = Math.min(1.5, window.devicePixelRatio || 1);
+      const canvas = await html2canvas(offscreen, {
+        scale: renderScale,
+        useCORS: true,
+        allowTaint: false,
+        logging: false,
+        windowWidth: offscreen.scrollWidth,
+        windowHeight: offscreen.scrollHeight,
+        backgroundColor: null // preserve background as rendered
+      });
+
+      // Remove offscreen DOM asap
+      document.body.removeChild(offscreen);
+
+      // Downscale very large canvases to cap output resolution
+      const MAX_CANVAS_WIDTH = 1600;
+      let finalCanvas = canvas;
+      if (canvas.width > MAX_CANVAS_WIDTH) {
+        const downscaleFactor = MAX_CANVAS_WIDTH / canvas.width;
+        const tmp = document.createElement('canvas');
+        tmp.width = Math.floor(canvas.width * downscaleFactor);
+        tmp.height = Math.floor(canvas.height * downscaleFactor);
+        const tctx = tmp.getContext('2d');
+        tctx.fillStyle = getComputedStyle(document.body).background || '#ffffff';
+        tctx.fillRect(0, 0, tmp.width, tmp.height);
+        tctx.drawImage(canvas, 0, 0, canvas.width, canvas.height, 0, 0, tmp.width, tmp.height);
+        finalCanvas = tmp;
+      }
+
+      // Prepare PDF and margins
+      const pdf = new jsPDF('p', 'pt', 'a4');
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 28;
+      const availableWidth = pageWidth - margin * 2;
+      const availableHeight = pageHeight - margin * 2;
+
+      // Use JPEG to keep size reasonable while keeping colors
+      const JPEG_QUALITY = 0.85;
+
+      const canvasWidth = finalCanvas.width;
+      const canvasHeight = finalCanvas.height;
+      const scale = availableWidth / canvasWidth;
+      const scaledFullHeight = canvasHeight * scale;
+
+      if (scaledFullHeight <= availableHeight + 0.1) {
+        const imgData = finalCanvas.toDataURL('image/jpeg', JPEG_QUALITY);
+        pdf.addImage(imgData, 'JPEG', margin, margin, availableWidth, scaledFullHeight);
+      } else {
+        const pageHeightPx = Math.floor(availableHeight / scale);
+        let y = 0;
+        let pageIndex = 0;
+        while (y < canvasHeight) {
+          const canvasPage = document.createElement('canvas');
+          canvasPage.width = canvasWidth;
+          canvasPage.height = Math.min(pageHeightPx, canvasHeight - y);
+          const ctx = canvasPage.getContext('2d');
+          ctx.fillStyle = getComputedStyle(document.body).background || '#ffffff';
+          ctx.fillRect(0, 0, canvasPage.width, canvasPage.height);
+          ctx.drawImage(finalCanvas, 0, y, canvasWidth, canvasPage.height, 0, 0, canvasWidth, canvasPage.height);
+          const imgPageData = canvasPage.toDataURL('image/jpeg', JPEG_QUALITY);
+          const pageScaledHeight = canvasPage.height * scale;
+
+          if (pageIndex > 0) pdf.addPage();
+          pdf.addImage(imgPageData, 'JPEG', margin, margin, availableWidth, pageScaledHeight);
+
+          // clean
+          // store height BEFORE cleaning
+          const sliceHeight = canvasPage.height;
+
+          // clean memory
+          canvasPage.width = 0;
+          canvasPage.height = 0;
+
+          // advance to next slice
+          y += sliceHeight;
+          pageIndex++;
+
+        }
+      }
+
+      const fileName = `analysis_${new Date().toISOString().replace(/[:.]/g, '-')}.pdf`;
+      pdf.save(fileName);
+
+      // free memory
+      try {
+        canvas.width = 0;
+        canvas.height = 0;
+        if (finalCanvas !== canvas) {
+          finalCanvas.width = 0;
+          finalCanvas.height = 0;
+        }
+      } catch (e) { /* ignore */ }
+
+    } catch (err) {
+      console.error('Export error:', err);
+      alert('Failed to export PDF: ' + (err?.message || err));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // add this function to Detector.jsx (replace or call from Export button)
+
+  async function handleExport_Text() {
+    if (!result) {
+      alert('No analysis result to export. Run detection first.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Header / title
+      const lines = [];
+      lines.push('AI Content Detector');
+      lines.push('='.repeat(48));
+      lines.push('');
+
+      // Summary
+      const scorePct = Math.round((result.score ?? 0) * 100);
+      lines.push(`Label: ${result.label ?? 'Unknown'}`);
+      lines.push(`Score: ${scorePct}%`);
+      lines.push('');
+
+      // Signals
+      const s = result.signals || {};
+      lines.push('Signals:');
+      lines.push(`  - Repetitiveness: ${Math.round((s.repetitiveness ?? 0) * 100)}%`);
+      // keep entropy as raw number if present, otherwise try to parse from explanation
+      const entropyVal = (typeof s.punctuationRate === 'number')
+        ? s.punctuationRate
+        : (result.explanation?.match(/Entropy[:\s]*([0-9]*\.?[0-9]+)/i)?.[1] ?? 'N/A');
+      lines.push(`  - Entropy: ${entropyVal}`);
+      lines.push(`  - Perplexity: ${Math.round((s.perplexityScore ?? 0) * 100)}%`);
+      lines.push(`  - AI Indicator: ${s.indicator ? 'Yes' : 'No'}`);
+      lines.push('');
+
+      // Timestamp and counts
+      const ts = result.timestamp ? new Date(result.timestamp).toLocaleString() : new Date().toLocaleString();
+      const wordCount = (result.word_count ?? (typeof result.fullText === 'string' ? result.fullText.trim().split(/\s+/).filter(Boolean).length : 0));
+      lines.push(`Total Number of Words: ${wordCount}`);
+      lines.push(`Analyzed at: ${ts}`);
+      lines.push('');
+      lines.push('-'.repeat(48));
+      lines.push('');
+      lines.push('Analyzed Text:');
+      lines.push('');
+
+      // Preserve original text formatting
+      const inputText = result.fullText ?? text ?? '';
+      lines.push(inputText);
+      lines.push('');
+      lines.push('--- End of Report ---');
+
+      const content = lines.join('\n');
+
+      // Create blob and trigger download
+      const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const filename = `analysis_${new Date().toISOString().replace(/[:.]/g, '-')}.txt`;
+
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      // append to DOM to ensure click works in all browsers
+      document.body.appendChild(a);
+      a.click();
+
+      // cleanup
+      setTimeout(() => {
+        URL.revokeObjectURL(url);
+        if (a.parentNode) a.parentNode.removeChild(a);
+      }, 1500);
+    } catch (err) {
+      console.error('Export text error', err);
+      alert('Export failed: ' + (err?.message || err));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // compute displayed percentages robustly
+  const scoreVal = typeof result?.score === 'number' ? result.score : 0.5;
   const aiPct = result?.label === 'AI'
-  ? Math.round((result?.score ?? 0) * 100)
-  : Math.round(100 - (result?.score ?? 0) * 100)
-const humanPct = 100 - aiPct
+    ? Math.round(scoreVal * 100)
+    : Math.round((1 - scoreVal) * 100);
+  const humanPct = 100 - aiPct;
+
+  // ---------- Helper: select history item ----------
+  function selectHistoryItem(h) {
+    setResult(h);
+    if (typeof h.fullText === 'string') {
+      setText(h.fullText); // sync input textarea to selected history item
+    } else {
+      setText('');
+    }
+    setSelectedId(h.id);
+    setShowResultPanel(true);
+    resultPanelRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const ta = inputPanelRef.current?.querySelector('textarea');
+    if (ta) ta.focus();
+  }
+
+  function onHistoryKeyDown(e, h) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      selectHistoryItem(h);
+    }
+  }
 
 
+
+
+  // ---------- Render UI ----------
   return (
-    <div className="detector enhanced">
-      <section className="panel input-panel">
+    <div className={`detector enhanced ${showResultPanel ? 'show-result' : 'hide-result'}`}>
+      {/* Input panel */}
+      <section id="analyze" ref={inputPanelRef} className="panel input-panel">
         <div className="panel-head">
           <h2>Analyze Text</h2>
           <div className="panel-actions">
@@ -218,12 +650,66 @@ const humanPct = 100 - aiPct
             {loading ? 'Analyzing…' : 'Run Detection'}
           </button>
           <div className="muted help">
-            <strong>Mode:</strong> Backend (FastAPI)
+            <strong>For improved accuracy, please provide a minimum of 100 words</strong> 
           </div>
+
         </div>
       </section>
 
+      {/* Result panel with Export button */}
       <section ref={resultPanelRef} className="panel result-panel">
+        <div className="panel-head" style={{ marginBottom: 8 }}>
+          <h2 style={{ margin: 0 }}>Result Analysis</h2>
+          <div className="panel-actions">
+            <details className="export-dropdown">
+              <summary
+                className="export-summary"
+                role="button"
+                aria-haspopup="true"
+                aria-label="Export options"
+              >
+                <span className="export-icon">📤</span>
+                <span className="export-label">Export</span>
+                <span className="export-caret" aria-hidden="true">▾</span>
+              </summary>
+
+              <div className="export-menu" role="menu" aria-label="Export menu">
+                <button
+                  type="button"
+                  className="export-item"
+                  onClick={(e) => {
+                    handleExportPDF();
+                    const dropdown = e.target.closest("details");
+                    if (dropdown) dropdown.removeAttribute("open");
+                  }}
+                  disabled={!result || loading}
+                  role="menuitem"
+                  title="Exports Advanced Report as PDF (visual)"
+                >
+                  📄 Export PDF
+                </button>
+
+
+                <button
+                  type="button"
+                  className="export-item"
+                  onClick={(e) => {
+                    handleExport_Text();
+                    const dropdown = e.target.closest("details");
+                    if (dropdown) dropdown.removeAttribute("open");
+                  }}
+                  disabled={!result || loading}
+                  role="menuitem"
+                  title="Exports basic Result as text file"
+                >
+                  📄 Export TXT
+                </button>
+
+              </div>
+            </details>
+          </div>
+        </div>
+
         {!result ? (
           <div className="empty">
             <p className="muted">Press <strong>Run Detection</strong> to start analysis.</p>
@@ -235,10 +721,10 @@ const humanPct = 100 - aiPct
               <div className="gauge-summary">
                 <span className={`gauge-chip ${result.label === 'AI' ? 'ai' : 'human'}`}>{result.label}</span>
                 <span className="gauge-pct">
-  {result.label === 'AI'
-    ? `${aiPct}% AI / ${humanPct}% Human`
-    : `${humanPct}% Human / ${aiPct}% AI`}
-</span>
+                  {result.label === 'AI'
+                    ? `${aiPct}% AI / ${humanPct}% Human`
+                    : `${humanPct}% Human / ${aiPct}% AI`}
+                </span>
 
               </div>
             </div>
@@ -248,13 +734,152 @@ const humanPct = 100 - aiPct
               <SignalRow name="Perplexity" value={result.signals?.perplexityScore ?? 0} />
               <SignalRow name="AI Indicator" value={result.signals?.indicator ? 1 : 0} />
             </div>
+
             <div className="explain">
-              <pre className="muted small">{result.explanation}</pre>
+              {/* <pre className="muted large">{result.explanation}</pre> */}
+              <div className="result-footer-meta" aria-hidden="false">
+                <div className="meta-line">
+                  {/* <div className="meta-key">Entropy:</div>
+                  <div className="meta-val">{(result.signals?.punctuationRate ?? result.explanation?.match(/Entropy: (\d+\.\d+)/)?.[1]) ?? 'N/A'}</div>
+                | */}
+                  <div className="meta-key"><h2>Words :</h2></div>
+                  <div className="meta-val"><h3>{result.word_count ?? (result.fullText ? (result.fullText.trim().split(/\s+/).filter(Boolean).length) : '0')}</h3></div>
+                </div>
+              </div>
               <small className="muted">Analyzed at {new Date(result.timestamp).toLocaleString()}</small>
             </div>
           </div>
         )}
       </section>
+
+      {/* History panel */}
+      <section id="history" className="panel history-panel">
+        <div className="panel-head">
+          <h3>History</h3>
+          <div>
+            <button className="secondary" onClick={clearHistory}>Clear History</button>
+          </div>
+        </div>
+
+        <ul className="history" aria-label="Analysis history">
+          {history.map(h => (
+            <li
+              key={h.id}
+              className="history-item"
+              onClick={() => selectHistoryItem(h)}
+              onKeyDown={(e) => onHistoryKeyDown(e, h)}
+              tabIndex={0}
+              role="button"
+              aria-selected={selectedId === h.id}
+            >
+              <div className={`pill pill-${(h.label || 'human').toLowerCase()}`}>{h.label}</div>
+              <div className="history-text">{(h.fullText || '').slice(0, 140)}</div>
+              <div className="history-meta muted small">{new Date(h.timestamp).toLocaleString()}</div>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      {/* Explanation Panel */}
+      <section id="analysis" className="panel info-panel">
+        <div className="panel-head">
+          <h3>Understanding Result Analysis</h3>
+        </div>
+
+        <div className="info-content">
+          <h4>1. Human / AI Score</h4>
+          <p>
+            The detector generates a percentage score that estimates how likely the text was written
+            by a Human or by AI. The score is based on statistical patterns extracted from the text.
+          </p>
+
+          <h4>2. Repetitiveness</h4>
+          <p>
+            Measures how often similar word groups repeat. AI models sometimes repeat similar sentence
+            structures. Higher repetitiveness may indicate AI-generated content.
+          </p>
+
+          <h4>3. Entropy</h4>
+          <p>
+            Entropy measures randomness in your text.
+            - High entropy = more natural, human-like variation
+            - Low entropy = predictable patterns, often seen in AI outputs
+
+          </p>
+
+          <h4>4. Perplexity</h4>
+          <p>
+            Perplexity shows how surprising or complex the text is.
+            Very low perplexity = AI-like.
+            Medium perplexity = human-like writing.
+          </p>
+
+          <h4>5. AI Indicator</h4>
+          <p>
+            This checks for direct AI-related phrases such as “as an AI model”,
+            “generated by”, etc. If detected, AI score increases.
+          </p>
+
+          <h4>6. Final Score Calculation</h4>
+          <p>
+            The final AI/Human score is calculated by combining:
+          </p>
+
+          <ul>
+            <li>Repetitiveness (weight high)</li>
+            <li>Entropy balance</li>
+            <li>Perplexity distribution</li>
+            <li>AI indicator keywords</li>
+            <li>Backend model confidence</li>
+          </ul>
+
+          <p>
+            Each factor contributes to the final confidence percentage.
+            Higher score = more likely AI-generated.
+          </p>
+        </div>
+      </section>
+
+      {/* About Us Panel */}
+      <section id="about" className="panel about-panel">
+        <div className="panel-head">
+          <h3>About Us</h3>
+        </div>
+
+        <div className="about-content">
+          <p>
+            We build advanced AI-powered text analysis tools designed to identify patterns,
+            measure linguistic behavior, and determine whether content is AI-generated or human-written.
+          </p>
+
+          <p>
+            Our system combines statistical models, natural language processing,
+            and heuristic analysis to deliver highly accurate detection results
+            for students, researchers, content creators, and organizations.
+          </p>
+
+          <h4>Our Mission</h4>
+          <p>
+            To provide transparent, unbiased, and reliable AI-content identification
+            that helps users maintain authenticity and originality in writing.
+          </p>
+
+          <h4>Why We Built This</h4>
+          <ul>
+            <li>To support academic integrity</li>
+            <li>To help creators understand AI patterns</li>
+            <li>To detect misuse of generative AI tools</li>
+            <li>To deliver fast, accurate, and user-friendly analysis</li>
+          </ul>
+
+          <p>
+            Your feedback helps us improve continuously.
+            Thank you for using our AI Content Detector! 🚀
+          </p>
+        </div>
+      </section>
+
     </div>
   );
 }
+

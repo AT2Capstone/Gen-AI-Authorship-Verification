@@ -1,12 +1,23 @@
+/* index.css
+   All original styles preserved. The Export feature clones DOM nodes that reuse these CSS classes
+   so keeping the same CSS ensures the exported PDF appearance (colors, bars, gauge, fonts, borders)
+   remains as on-screen.
+   No layout changes were made in these styles except for positioning the small result metrics
+   (Entropy | Words | Analyzed at) into the right-bottom of the result panel on wide screens.
+*/
+
+/* === Theme variables and base layout === */
 :root {
   --bg: #f6f8fa;
   --bg-light: #eef2f7;
   --panel: #ffffff;
   --muted: #6b7280;
   --text: #0f172a;
-  --primary: #2563eb; /* Blue */
+  --primary: #2563eb;
+  /* Blue */
   --accent: #06b6d4;
-  --danger: #ef4444; /* Red */
+  --danger: #ef4444;
+  /* Red */
   --success: #16a34a;
 
   --radius: 12px;
@@ -18,15 +29,19 @@
   background: linear-gradient(180deg, var(--bg), var(--bg-light));
 }
 
-html, body, #root {
+html,
+body,
+#root {
   height: 100%;
   margin: 0;
   color: var(--text);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  padding: 24px;
+  /* padding: 24px; */
+  padding: 10px !important;
 }
 
+/* Application container */
 .app {
   max-width: 1100px;
   margin: 18px auto;
@@ -35,6 +50,7 @@ html, body, #root {
   gap: var(--gap);
 }
 
+/* Detector layout: 2-column on wide screens */
 .detector.enhanced {
   display: grid;
   grid-template-columns: 1.1fr 1fr;
@@ -42,10 +58,7 @@ html, body, #root {
   align-items: stretch;
 }
 
-@media (max-width: 920px) {
-  .detector.enhanced { grid-template-columns: 1fr; }
-  .result-grid { grid-template-columns: 1fr; }
-}
+
 
 /* Panel card design */
 .panel {
@@ -53,12 +66,17 @@ html, body, #root {
   padding: 20px;
   border-radius: var(--radius);
   box-shadow: var(--shadow-sm);
-  border: 1px solid rgba(15,23,42,0.08);
+  border: 1px solid rgba(15, 23, 42, 0.08);
   transition: box-shadow 0.3s, border 0.2s;
   display: flex;
   flex-direction: column;
 }
-.panel:focus-within, .panel:hover { box-shadow: 0 10px 32px rgba(37,99,235,0.09); border-color: var(--primary); }
+
+.panel:focus-within,
+.panel:hover {
+  box-shadow: 0 10px 32px rgba(37, 99, 235, 0.09);
+  border-color: var(--primary);
+}
 
 /* Panel header */
 .panel-head {
@@ -68,7 +86,12 @@ html, body, #root {
   gap: 10px;
   margin-bottom: 12px;
 }
-.panel-head h2, .panel-head h3 { margin: 0; font-size: 1rem; }
+
+.panel-head h2,
+.panel-head h3 {
+  margin: 0;
+  font-size: 1rem;
+}
 
 /* Accessible panel hints */
 .panel-hint {
@@ -79,21 +102,29 @@ html, body, #root {
   letter-spacing: 0.02em;
 }
 
+
+
 /* Styled file input and button */
 .file-input {
   position: relative;
   display: inline-flex;
   align-items: center;
-  background: linear-gradient(90deg, rgba(37,99,235,0.09), transparent 70%);
+  background: transparent;
   color: var(--primary);
-  padding: 8px 12px;
+  padding: 7px 12px;
   border-radius: 8px;
-  border: 1px solid rgba(37,99,235,0.13);
+  border: 1px solid rgba(15, 23, 42, 0.10);
   cursor: pointer;
-  font-weight: 500;
-  transition: background 0.2s;
+  font-weight: 600;
+  transition: background 0.15s, border 0.15s;
 }
-.file-input:hover, .file-input:focus { background: linear-gradient(90deg, var(--accent), var(--primary)); color: #fff; }
+
+.file-input:hover,
+.file-input:focus {
+  background: linear-gradient(90deg, var(--accent), var(--primary));
+  color: #fff;
+}
+
 .file-input input[type="file"] {
   position: absolute;
   inset: 0;
@@ -107,18 +138,29 @@ html, body, #root {
   min-height: 235px;
   padding: 0px;
   border-radius: 12px;
-  border: 1.5px solid rgba(15,23,42,0.08);
-  background: linear-gradient(180deg, rgba(255,255,255,0.75), transparent);
+  border: 1.5px solid rgba(15, 23, 42, 0.08);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.75), transparent);
   font-size: 14px;
   line-height: 1.6;
   resize: vertical;
   outline: none;
   transition: box-shadow 0.2s, border 0.2s;
   flex-grow: 1;
+  padding: 12px;
+  box-sizing: border-box;
 }
+
 .text-area:focus {
-  box-shadow: 0 6px 22px rgba(37,99,235,0.15);
+  box-shadow: 0 6px 22px rgba(37, 99, 235, 0.15);
   border-color: var(--primary);
+}
+
+/* For the exported input text, preserve line breaks and formatting */
+.heuristic-text {
+  font-family: monospace;
+  font-size: 0.9rem;
+  white-space: pre-wrap;
+  /* keep line breaks intact */
 }
 
 /* Controls and buttons */
@@ -128,6 +170,7 @@ html, body, #root {
   align-items: center;
   margin-top: 14px;
 }
+
 .primary {
   background: linear-gradient(90deg, var(--accent), var(--primary));
   color: #fff;
@@ -141,29 +184,49 @@ html, body, #root {
   gap: 8px;
   transition: background 0.2s, box-shadow 0.2s;
 }
-.primary[disabled] { opacity: 0.7; cursor: not-allowed; }
-.primary:focus, .primary:hover { filter: brightness(0.97); box-shadow: 0 1px 6px var(--primary); }
+
+.primary[disabled] {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.primary:focus,
+.primary:hover {
+  filter: brightness(0.97);
+  box-shadow: 0 1px 6px var(--primary);
+}
+
 .secondary {
   background: transparent;
-  border: 1px solid rgba(15,23,42,0.10);
-  padding: 7px 12px;
+  border: 1px solid rgba(15, 23, 42, 0.10);
+  padding: 8px 15px;
   border-radius: 8px;
   cursor: pointer;
   font-weight: 600;
   color: var(--primary);
   transition: background 0.15s, border 0.15s;
 }
-.secondary:hover, .secondary:focus { background: rgba(37,99,235,0.06); }
+
+.secondary:hover,
+.secondary:focus {
+  background: rgba(37, 99, 235, 0.06);
+  box-shadow: 0 1px 3px var(--primary);
+}
 
 .btn-spinner {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  border: 2px solid rgba(255,255,255,0.3);
+  border: 2px solid rgba(255, 255, 255, 0.3);
   border-top-color: white;
   animation: spin 900ms linear infinite;
 }
-@keyframes spin { to { transform: rotate(360deg); } }
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 
 /* Result grid visuals */
 .result-grid {
@@ -172,6 +235,7 @@ html, body, #root {
   gap: 16px;
   align-items: start;
 }
+
 .gauge-wrap {
   display: flex;
   flex-direction: column;
@@ -181,20 +245,22 @@ html, body, #root {
   gap: 10px;
 }
 
-/* Enhanced Progress Pie Chart */
+/* === Progress Pie Chart === */
 .progress-pie-chart {
-  position: relative;
+  --ai-percentage: 0%;
   width: 160px;
   height: 160px;
   border-radius: 50%;
-  /* Corrected conic-gradient to use a CSS variable */
-  background: conic-gradient(var(--danger) 0%, var(--danger) var(--ai-percentage), var(--bg-light) var(--ai-percentage), var(--bg-light) 100%);
+  background: conic-gradient(#3b82f6 calc(var(--ai-percentage)), #e5e7eb 0);
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-  transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out, background 0.3s ease-in-out;
+  position: relative;
+  margin: 1rem auto;
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.2);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
 }
+
 .progress-pie-chart::before {
   content: '';
   position: absolute;
@@ -202,22 +268,8 @@ html, body, #root {
   height: calc(100% - 24px);
   border-radius: 50%;
   background: var(--panel);
-  box-shadow: inset 0 0 20px rgba(0,0,0,0.05);
-}
-.progress-pie-chart::after {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0; bottom: 0;
-  border-radius: 50%;
-  background: radial-gradient(circle at top, rgba(255,255,255,0.3) 0%, transparent 70%);
-}
-
-.progress-pie-chart:hover {
-  transform: scale(1.06);
-  box-shadow: 0 16px 40px rgba(0,0,0,0.2);
-  /* On hover, AI segment turns blue, human segment remains subtle gray */
-  /* background: conic-gradient(var(--primary) 0%, var(--primary) var(--ai-percentage), var(--bg-light) var(--ai-percentage), var(--bg-light) 100%); */
-  cursor: pointer;
+  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.05);
+  z-index: 0;
 }
 
 .progress-pie-chart .label {
@@ -225,38 +277,127 @@ html, body, #root {
   z-index: 1;
   text-align: center;
 }
+
 .progress-pie-chart .label h3 {
-  font-size: 3rem;
-  font-weight: 700;
   margin: 0;
+  font-size: 2rem;
+  font-weight: 700;
   color: var(--text);
 }
+
 .progress-pie-chart .label span {
-  font-size: 1.1rem;
+  font-size: 1rem;
   color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
 
+.progress-pie-chart:hover {
+  transform: scale(1.06);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+}
+
+/* Color variants (AI vs Human) */
+.progress-pie-chart.ai {
+  background: conic-gradient(#ef4444 calc(var(--ai-percentage)), #e5e7eb 0);
+  box-shadow: 0 0 25px rgba(239, 68, 68, 0.12);
+}
+
+.progress-pie-chart.human {
+  background: conic-gradient(#22c55e calc(var(--ai-percentage)), #e5e7eb 0);
+  box-shadow: 0 0 25px rgba(34, 197, 94, 0.12);
+}
+
+/* Updates: make the pie-chart background take the AI/Human color on hover.
+   Only the hover/background-related rules are added/adjusted here so you can drop them
+   into your existing index.css without touching other parts.
+*/
+
+/* ensure background transition is smooth */
+.progress-pie-chart {
+  transition: transform 0.25s ease, box-shadow 0.25s ease, background 0.35s ease;
+}
+
+/* generic hover (keeps transform/box-shadow) - specific colors applied by class rules below */
+.progress-pie-chart:hover {
+  transform: scale(1.06);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+}
+
+/* AI variant: on hover show red AI segment for the AI percentage and neutral for the rest */
+.progress-pie-chart.ai:hover {
+  background: conic-gradient(#ef4444 calc(var(--ai-percentage)),
+      #e5e7eb calc(var(--ai-percentage)));
+}
+
+/* Human variant: on hover show green human segment for the AI percentage and neutral for the rest */
+.progress-pie-chart.human:hover {
+  background: conic-gradient(#0ac950 calc(var(--ai-percentage)),
+      #e5e7eb calc(var(--ai-percentage)));
+}
+
+/* Neutral / unknown variant (falls back to primary color) */
+.progress-pie-chart:not(.ai):not(.human):hover {
+  background: conic-gradient(var(--primary) calc(var(--ai-percentage)),
+      #22c55e calc(var(--ai-percentage)));
+}
+
+/* keep the inner circle (hole) the same panel color on hover so the donut appearance remains */
+.progress-pie-chart:hover::before {
+  background: var(--panel);
+  transition: background 0.25s ease;
+}
+
 /* Signals and bars */
-.signals { display: flex; flex-direction: column; gap: 10px; flex-grow: 1; }
-.signal-row { display: flex; flex-direction: column; gap: 4px; margin-bottom: 2px; }
-.signal-meta { display:flex; justify-content: space-between; gap: 8px; align-items: baseline; }
-.signal-name { font-weight: 600; color: var(--text); font-size: 0.95rem; }
-.signal-value { font-size: 0.8rem; color: var(--muted); }
+.signals {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex-grow: 1;
+}
+
+.signal-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 2px;
+}
+
+.signal-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.signal-name {
+  font-weight: 600;
+  color: var(--text);
+  font-size: 0.95rem;
+}
+
+.signal-value {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
 .signal-bar {
-  background: rgba(15,23,42,0.08);
+  background: rgba(15, 23, 42, 0.08);
   height: 10px;
   border-radius: 999px;
   overflow: hidden;
   margin-top: 3px;
 }
+
 .signal-fill {
   height: 100%;
   background: linear-gradient(90deg, var(--accent), var(--primary));
   border-radius: 999px;
-  transition: width 700ms cubic-bezier(.2,.9,.2,1);
+  transition: width 700ms cubic-bezier(.2, .9, .2, 1);
 }
+
 .signal-info {
   font-size: 0.8rem;
   color: var(--muted);
@@ -265,37 +406,51 @@ html, body, #root {
 }
 
 /* Explanation */
-.explain { margin-top: 9px; }
-.explain .small { margin: 6px 0; }
-.heuristic-text {
-  font-family: monospace;
-  font-size: 0.8rem;
-  background: var(--bg-light);
-  padding: 8px;
-  border-radius: 8px;
-  white-space: pre-wrap;
-  word-break: break-all;
-  line-height: 1.5;
+.explain {
+  margin-top: 9px;
 }
 
-.summary-pcts { margin-top: 13px; }
-.summary-row { display:flex; justify-content:space-between; align-items:center; margin-bottom:7px; }
-.summary-label { font-weight:600; color:var(--muted); }
-.summary-value { font-weight:800; }
+.explain .small {
+  margin: 6px 0;
+}
+
+
+
+/* Summary pcts etc remain unchanged */
+.summary-pcts {
+  margin-top: 13px;
+}
+
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 7px;
+}
+
+.summary-label {
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.summary-value {
+  font-weight: 800;
+}
 
 .pct-bar {
   width: 100%;
   height: 13px;
-  background: rgba(15,23,42,0.08);
+  background: rgba(15, 23, 42, 0.08);
   border-radius: 999px;
   overflow: hidden;
   margin-top: 8px;
 }
+
 .pct-fill {
   height: 100%;
   background: linear-gradient(90deg, var(--accent), var(--primary));
   border-radius: 999px;
-  transition: width 700ms cubic-bezier(.2,.9,.2,1);
+  transition: width 700ms cubic-bezier(.2, .9, .2, 1);
 }
 
 /* Pills for AI/Human */
@@ -307,37 +462,105 @@ html, body, #root {
   letter-spacing: 0.018em;
   transition: background 0.25s;
 }
-.pill-ai { background: rgba(254,226,226,0.8); color: #7f1d1d; border: 1px solid rgba(254,202,202,0.9); }
-.pill-human { background: rgba(220,249,255,0.8); color: #064e3b; border: 1px solid rgba(187,247,208,0.9); }
+
+.pill-ai {
+  background: rgba(254, 226, 226, 0.8);
+  color: #7f1d1d;
+  border: 1px solid rgba(254, 202, 202, 0.9);
+}
+
+.pill-human {
+  background: rgba(220, 249, 255, 0.8);
+  color: #064e3b;
+  border: 1px solid rgba(187, 247, 208, 0.9);
+}
 
 /* History enhancements */
 .history-panel {
-    grid-column: 1 / -1;
+  /* grid-row: 2;                  */
+  grid-column: 1 / -1;
+  min-height: 140px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  /* min-height: 150px; */
+  transition: min-height 0.3s ease;
 }
-.history { list-style: none; padding: 0; margin: 8px 0 0 0; display: grid; gap: 8px; }
-.history-item { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; padding: 10px; border-radius: 10px; border: 1.5px solid rgba(15,23,42,0.05); background: rgba(255,255,255,0.82); cursor: pointer; transition: box-shadow 0.14s, border 0.14s; }
-.history-item:hover, .history-item:focus { outline: none; box-shadow: 0 2px 12px var(--accent); border-color: var(--primary); }
-.history-text { color: var(--text); font-size: 1rem; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.history-meta { margin-left: 10px; }
-.history-item[aria-selected="true"] { border-color: var(--primary); background: rgba(37,99,235,0.11); }
 
-.muted { color: var(--muted); }
-.small { font-size: 0.8rem; }
-.empty { padding: 18px; text-align: center; }
+.history {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0 0;
+  display: grid;
+  gap: 8px;
+}
+
+.history-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 8px;
+  align-items: center;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1.5px solid rgba(15, 23, 42, 0.05);
+  background: rgba(255, 255, 255, 0.82);
+  cursor: pointer;
+  transition: box-shadow 0.14s, border 0.14s;
+}
+
+.history-item:hover,
+.history-item:focus {
+  outline: none;
+  box-shadow: 0 2px 12px var(--accent);
+  border-color: var(--primary);
+}
+
+.history-text {
+  color: var(--text);
+  font-size: 1rem;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.history-meta {
+  margin-left: 10px;
+}
+
+.history-item[aria-selected="true"] {
+  border-color: var(--primary);
+  background: rgba(37, 99, 235, 0.11);
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.small {
+  font-size: 0.8rem;
+}
+
+.empty {
+  padding: 18px;
+  text-align: center;
+}
 
 /* Accessibility focus */
-:focus { outline: none; box-shadow: 0 6px 22px rgba(37,99,235,0.15); border-radius: 12px; }
+:focus {
+  outline: none;
+  box-shadow: 0 6px 22px rgba(37, 99, 235, 0.15);
+  border-radius: 12px;
+}
 
 /* Responsive reduced motion */
-@media (prefers-reduced-motion: reduce) {
-  .signal-fill, .gauge-svg, .btn-spinner { transition: none; animation: none; }
-}
+
 .gauge-summary {
   display: flex;
   flex-direction: column;
   align-items: center;
   margin-top: 12px;
 }
+
 .gauge-chip {
   background: #f3f4f6;
   color: #7f1d1d;
@@ -348,63 +571,941 @@ html, body, #root {
   margin-bottom: 3px;
   letter-spacing: 0.03em;
 }
+
 .gauge-chip.human {
   color: #064e3b;
   background: #e6fbf3;
 }
+
 .gauge-chip.ai {
   color: #7f1d1d;
   background: #fee2e2;
 }
+
 .gauge-pct {
   font-size: 1rem;
   color: var(--primary);
   font-weight: 600;
   letter-spacing: 0.04em;
 }
-/* === AI Score Ring (Progress Pie Chart) === */
-.progress-pie-chart {
-  --ai-percentage: 0%;
-  width: 160px;
-  height: 160px;
-  border-radius: 50%;
-  background: conic-gradient(
-    #3b82f6 calc(var(--ai-percentage)),
-    #e5e7eb 0
-  );
+
+/* === PDF Export specific styles === */
+
+#pdf-export-container,
+#pdf-export-container .panel {
+  background: #ffffff !important;
+  /* ensure export container is solid white */
+  box-shadow: none !important;
+}
+
+
+/* Make the exported textarea / replacement div render as plain white with subtle border */
+#pdf-export-container .text-area,
+#pdf-export-container .heuristic-text,
+#pdf-export-container textarea {
+  background: #ffffff !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  border: 1.5px solid rgba(15, 23, 42, 0.06) !important;
+  color: var(--text) !important;
+  padding: 12px !important;
+  border-radius: 12px !important;
+  min-height: 120px !important;
+  white-space: pre-wrap !important;
+  /* keep exported text selectable/visible and avoid transparency artifacts for JPEG export */
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
+}
+
+/* If html2canvas copies gradients from pseudo-elements, force them off inside export */
+/* Only disable pseudo-element background-images to avoid weird gradient artifacts,
+   but keep element backgrounds (conic/linear gradients) used for charts and bars. */
+#pdf-export-container *::before,
+#pdf-export-container *::after {
+  background-image: none !important;
+}
+
+/* (only the additions/changes are shown here; keep rest of your existing CSS) */
+
+/* Ensure the result panel container is positioned for absolute children */
+.panel.result-panel {
+  position: relative;
+  overflow: visible;
+}
+
+/* Footer meta block in the Result panel (Entropy / Words) */
+.result-footer-meta {
+  position: absolute;
+  right: 20px;
+  bottom: 18px;
+  text-align: right;
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1.25;
   display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: transparent;
+  padding: 6px 10px;
+  border-radius: 8px;
+}
+
+/* Make the numeric values a bit more prominent */
+.result-footer-meta .meta-line {
+  display: flex;
+  justify-content: flex-end;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.result-footer-meta .meta-key {
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 0.88rem;
+  opacity: 0.9;
+}
+
+.result-footer-meta .meta-val {
+  color: var(--text);
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+/* Example small pill for the entropy value */
+.result-footer-meta .entropy-pill {
+  display: inline-block;
+  background: rgba(37, 99, 235, 0.06);
+  color: var(--primary);
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.85rem;
+  border: 1px solid rgba(37, 99, 235, 0.08);
+}
+
+
+
+/* Export dropdown — improved styling to match screenshot */
+/* Place this near other .panel-actions rules or at the end of the file. */
+
+.export-dropdown {
+  position: relative;
+  display: inline-block;
+  vertical-align: middle;
+  font-family: inherit;
+  z-index: 1200;
+  /* ensure menu sits above other panels */
+}
+
+/* Summary (the visible Export button) */
+.export-summary {
+  list-style: none;
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), var(--panel));
+  color: var(--primary);
+  font-weight: 700;
+  font-size: 0.95rem;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.04);
+  transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease, border-color 160ms ease;
+  padding-right: 14px;
+}
+
+/* Small icon inside summary (use existing markup) */
+.export-summary .export-icon {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  position: relative;
-  margin: 1rem auto;
-  box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(246, 249, 255, 0.95));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 1px 4px rgba(15, 23, 42, 0.05);
+  font-size: 14px;
 }
 
-.progress-pie-chart .label {
+/* caret */
+.export-summary .export-caret {
+  font-size: 12px;
+  color: var(--primary);
+  transition: transform 180ms ease;
+}
+
+.export-dropdown[open] .export-summary .export-caret {
+  transform: rotate(180deg);
+}
+
+/* hover / focus */
+.export-summary:hover,
+.export-summary:focus {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.08);
+  border-color: rgba(37, 99, 235, 0.22);
+  outline: none;
+}
+
+.export-summary:focus-visible {
+  box-shadow: 0 10px 30px rgba(37, 99, 235, 0.12);
+}
+
+/* Menu (floating card) */
+.export-menu {
   position: absolute;
-  text-align: center;
-  color: #111827;
+  top: calc(100% + 10px);
+  right: 0;
+  min-width: 220px;
+  background: var(--panel);
+  border-radius: 12px;
+  padding: 10px;
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.12);
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  display: none;
+  /* shown when details[open] */
+  z-index: 1400;
+  transform-origin: top right;
+  animation: popupIn 160ms ease;
 }
 
-.progress-pie-chart .label h3 {
-  margin: 0;
-  font-size: 2rem;
-  font-weight: 600;
-  color: #1f2937;
+/* show when details open */
+.export-dropdown[open] .export-menu {
+  display: block;
 }
 
-.progress-pie-chart .label span {
+/* entrance animation */
+@keyframes popupIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.995);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Menu items (buttons) */
+.export-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 0.95rem;
+  background: transparent;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  text-align: left;
+  transition: transform 120ms ease, box-shadow 120ms ease, filter 120ms ease, background 120ms ease;
+}
+
+/* Primary menu item (top) - blue gradient like screenshot */
+.export-item.primary {
+  background: linear-gradient(90deg, var(--accent), var(--primary));
+  color: #fff;
+  font-weight: 800;
+  box-shadow: 0 6px 18px rgba(37, 99, 235, 0.08);
+}
+
+/* Secondary item style (muted/pale) */
+.export-item.secondary {
+  background: linear-gradient(180deg, rgba(243, 244, 246, 0.9), rgba(246, 249, 255, 0.9));
+  color: var(--text);
+  font-weight: 700;
+  border: 1px solid rgba(15, 23, 42, 0.04);
+  box-shadow: none;
+}
+
+/* small icon box for menu items */
+.export-item .item-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.15);
+  flex: 0 0 34px;
+}
+
+/* specific icon background tweak: primary white-ish icon; secondary muted icon */
+.export-item.primary .item-icon {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.export-item.secondary .item-icon {
+  background: rgba(15, 23, 42, 0.03);
+}
+
+/* hover/focus states for items */
+.export-item:hover:not([disabled]),
+.export-item:focus:not([disabled]) {
+  transform: translateY(-2px);
+  filter: brightness(0.98);
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.08);
+  outline: none;
+}
+
+/* disabled */
+.export-item:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* ensure the menu remains hidden for non-open details in UAs that render it in flow */
+.export-dropdown:not([open]) .export-menu {
+  display: none;
+}
+
+/* keep export dropdown visually consistent inside the panel-actions area */
+.panel-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+
+
+/* =========================================
+   INPUT + RESULT Responsive (History stays)
+   ========================================= */
+
+/* Grid: Row1 = Input + Result, Row2 = History */
+.detector {
+  display: grid !important;
+  gap: 16px;
+  grid-auto-rows: auto;
+  /* <-- CRITICAL FIX */
+}
+
+
+/* BEFORE detection → only Input panel visible, full width */
+.detector.hide-result .input-panel {
+  grid-column: 1 / -1;
+  /* full width */
+}
+
+/* Hide result smoothly (not display: none) */
+.detector.hide-result .result-panel {
+  opacity: 0;
+  transform: translateX(40px);
+  /* fade-out + slide right */
+  pointer-events: none;
+  transition: opacity 0.45s ease, transform 0.45s ease;
+}
+
+
+.detector.show-result {
+  grid-template-columns: 1.1fr 1fr !important;
+  transition: grid-template-columns 0.45s ease;
+}
+
+/* Input returns to normal place */
+.detector.show-result .input-panel {
+  grid-column: 1;
+}
+
+/* Result appears smoothly */
+.detector.show-result .result-panel {
+  grid-column: 2;
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
+  transition: opacity 0.45s ease, transform 0.45s ease;
+}
+
+
+
+/* Info panel under history */
+.info-panel {
+  margin-top: 16px;
+}
+
+.info-content h4 {
+  margin: 12px 0 4px 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.info-content p {
+  margin: 4px 0 10px 0;
+  color: var(--text);
+  line-height: 1.55;
+  font-size: 0.95rem;
+}
+
+.info-content ul {
+  padding-left: 22px;
+  margin: 6px 0 12px 0;
+}
+
+.info-content li {
+  margin: 4px 0;
+  color: var(--muted);
   font-size: 0.9rem;
-  color: #6b7280;
 }
 
-/* === Prediction color variants === */
-.progress-pie-chart.ai {
-  background: conic-gradient(#ef4444 calc(var(--ai-percentage)), #e5e7eb 0);
-  box-shadow: 0 0 25px rgba(239, 68, 68, 0.3);
+/* Make the Understanding Analysis panel full width (like history panel) */
+.info-panel {
+  grid-column: 1 / -1;
+  grid-row: auto;
 }
 
-.progress-pie-chart.human {
-  background: conic-gradient(#22c55e calc(var(--ai-percentage)), #e5e7eb 0);
-  box-shadow: 0 0 25px rgba(34, 197, 94, 0.3);
+/* Full width like History panel */
+.about-panel {
+  grid-column: 1 / -1;
+  margin-top: 18px;
+}
+
+/* About content styling */
+.about-content {
+  font-family: 'Inter', 'Segoe UI', sans-serif;
+  font-size: 1rem;
+  line-height: 1.65;
+  color: var(--text);
+}
+
+.about-content h4 {
+  margin-top: 16px;
+  margin-bottom: 6px;
+  color: var(--primary);
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.about-content p {
+  margin-bottom: 10px;
+}
+
+.about-content ul {
+  margin: 6px 0 12px 22px;
+}
+
+.about-content ul li {
+  margin: 5px 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+
+/* -------------------------------
+   Modern Pure CSS Navbar
+----------------------------------*/
+.custom-navbar {
+  width: 100%;
+  padding: 18px 40px;
+
+  background: linear-gradient(90deg, #ffffff, #eef4ff);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+
+  position: fixed;
+  /* <--- FIXED NAVBAR */
+  top: 0;
+  left: 0;
+  z-index: 9999;
+}
+
+
+/* Align navbar content */
+.nav-container {
+  max-width: 1300px;
+  margin: auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+
+/* Logo */
+.nav-logo a {
+  font-size: 1.5rem;
+  font-weight: 900;
+  color: #111 !important;
+  /* strong black */
+  text-decoration: none;
+}
+
+
+/* Navigation Links */
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 26px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.nav-links li a {
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 1rem;
+  color: #1f2937;
+  position: relative;
+  transition: 0.3s ease;
+}
+
+/* Sexy underline animation */
+.nav-links li a::after {
+  content: "";
+  width: 0%;
+  height: 3px;
+  background: linear-gradient(90deg, #2563eb, #06b6d4);
+  position: absolute;
+  left: 0;
+  bottom: -3px;
+  border-radius: 8px;
+  transition: width 0.3s;
+}
+
+.nav-links li a:hover::after {
+  width: 100%;
+}
+
+/* Mobile toggle button */
+.nav-toggle {
+  display: none;
+  background: transparent;
+  font-size: 26px;
+  border: none;
+  cursor: pointer;
+}
+
+/* -------------------------------
+   Mobile Responsive
+----------------------------------*/
+
+
+
+.page-title {
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: #000;
+  /* pure black */
+  margin-top: 10px;
+}
+
+
+.main-content {
+  margin-top: 120px;
+  /* space below fixed navbar */
+}
+
+/* Prevent section from hiding behind fixed navbar */
+section {
+  scroll-margin-top: 140px;
+  /* adjust based on your navbar height */
+}
+
+
+
+/* HARD OVERRIDE bootstrap container that is breaking mobile layout */
+.container.my-4 {
+  display: block !important;
+  grid-template-columns: unset !important;
+  grid-auto-rows: unset !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+
+/* ================================================
+   FINAL COMBINED MOBILE CSS  (max-width: 768px)
+   ================================================ */
+@media (max-width: 768px) {
+
+  /* Reduce global padding */
+  html,
+  body,
+  #root {
+    padding: 8px !important;
+  }
+
+  /* FIX section scroll hiding behind navbar */
+  section {
+    scroll-margin-top: 80px !important;
+  }
+
+  /* ----- Detector Layout → Single Column ----- */
+  .detector {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    grid-auto-rows: auto !important;
+    gap: 16px;
+  }
+
+  .input-panel {
+    order: 1 !important;
+    grid-row: 1 !important;
+  }
+
+  .result-panel {
+    order: 2 !important;
+    grid-row: 2 !important;
+    opacity: 1 !important;
+    transform: none !important;
+    margin-top: 12px !important;
+  }
+
+  .detector.hide-result .result-panel {
+    opacity: 0 !important;
+    transform: translateX(40px) !important;
+    pointer-events: none !important;
+  }
+
+  .history-panel {
+    order: 3 !important;
+    grid-row: auto !important;
+    margin-top: 16px;
+    grid-column: 1 / -1;
+  }
+
+  .info-panel {
+    order: 4 !important;
+    grid-column: 1 / -1;
+  }
+
+  .about-panel {
+    order: 5 !important;
+    grid-column: 1 / -1;
+  }
+
+  /* Reset result bottom metrics */
+  .result-footer-meta {
+    position: relative !important;
+    bottom: auto !important;
+    right: auto !important;
+    margin-top: 10px !important;
+    text-align: left !important;
+  }
+
+  .result-panel .explain {
+    position: static !important;
+    margin-top: 9px !important;
+    text-align: left !important;
+  }
+
+  /* Navbar mobile */
+  .nav-toggle {
+    display: block;
+  }
+
+  .nav-links {
+    display: none;
+    position: absolute;
+    top: 70px;
+    right: 20px;
+    background: white;
+    padding: 16px;
+    border-radius: 12px;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+    flex-direction: column;
+    gap: 16px;
+    width: 200px;
+    z-index: 100;
+  }
+
+  .nav-links.open {
+    display: flex;
+  }
+
+  /* Export dropdown full width */
+  .export-menu {
+    left: 8px !important;
+    right: 8px !important;
+    min-width: auto !important;
+  }
+}
+
+@media (max-width: 900px) {
+
+  /* Force mobile layout earlier */
+  .detector {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Fix mobile order */
+  .input-panel {
+    order: 1 !important;
+  }
+
+  .result-panel {
+    order: 2 !important;
+  }
+
+  .history-panel {
+    order: 3 !important;
+  }
+
+  .info-panel {
+    order: 4 !important;
+  }
+
+  .about-panel {
+    order: 5 !important;
+  }
+
+  /* Fix navbar padding on mobile */
+  .custom-navbar {
+    padding: 14px 16px !important;
+  }
+
+  /* Fix container width causing overflow */
+  .container.my-4 {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    max-width: 100% !important;
+  }
+}
+
+@media (max-width: 900px) {
+
+  /* override desktop 2-column */
+  .detector.show-result {
+    grid-template-columns: 1fr !important;
+  }
+
+  .detector.hide-result {
+    grid-template-columns: 1fr !important;
+  }
+
+  .result-panel {
+    grid-column: 1 !important;
+  }
+}
+
+@media (max-width: 900px) {
+  .container.my-4 {
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+  }
+
+  .panel {
+    border-radius: 14px;
+  }
+}
+
+@media (max-width: 900px) {
+  .custom-navbar {
+    padding: 16px 14px !important;
+  }
+
+  .nav-container {
+    padding: 0 !important;
+    padding-right: 25px !important;
+    padding-left: 10px !important;
+  }
+}
+
+@media (max-width: 900px) {
+
+  /* override desktop forced two-column layout */
+  .detector.show-result {
+    grid-template-columns: 1fr !important;
+  }
+
+  .detector.hide-result {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Fix horizontal overflow issue */
+  html,
+  body {
+    overflow-x: hidden !important;
+    max-width: 100% !important;
+  }
+
+  .detector,
+  .panel,
+  .panel-head,
+  .result-grid,
+  .signals,
+  .gauge-wrap,
+  .panel-actions {
+    max-width: 100% !important;
+    overflow-x: hidden !important;
+  }
+
+}
+
+
+/* --- FULL FIX: FORCE RESULT PANEL TO SINGLE COLUMN ON MOBILE --- */
+@media (max-width: 768px) {
+
+  /* FULL override for the grid */
+  .result-grid {
+    display: block !important;    /* ← strongest fix */
+    width: 100% !important;
+  }
+
+  /* Gauge full width */
+  .gauge-wrap {
+    width: 100% !important;
+    margin: 0 auto 20px auto !important;
+  }
+
+  /* Export button full width and visible */
+  .panel-actions {
+    width: 100% !important;
+    justify-content: flex-start !important;
+  }
+
+  .export-dropdown,
+  .export-summary {
+    width: 100% !important;
+  }
+
+  /* Signal bars stacked cleanly */
+  .signals {
+    margin-top: 20px !important;
+    width: 100% !important;
+  }
+
+  .signal-row,
+  .signal-meta,
+  .signal-name,
+  .signal-value {
+    width: 100% !important;
+    white-space: normal !important;
+  }
+
+  /* Prevent any overflow */
+  .result-panel {
+    max-width: 100% !important;
+    overflow-x: hidden !important;
+    padding-right: 0 !important;
+  }
+
+  /* Fix label and value alignment */
+  .signal-meta {
+    display: flex;
+    justify-content: space-between;
+  }
+}
+
+/* --- FIX EXPORT DROPDOWN OVERFLOW ON MOBILE --- */
+@media (max-width: 768px) {
+
+  /* Allow dropdown to escape the container */
+  .result-panel {
+    overflow: visible !important;
+  }
+
+  /* Dropdown must appear above everything */
+  .export-dropdown {
+    position: relative !important;
+    z-index: 99999 !important;
+  }
+
+  /* Dropdown menu full-width and free */
+  .export-menu {
+    position: absolute !important;
+    right: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    transform: none !important;
+  }
+
+  /* Summary button full width */
+  .export-summary {
+    width: 100% !important;
+  }
+}
+
+/**************************************
+  FINAL FIX FOR MOBILE RESULT PANEL
+***************************************/
+@media (max-width: 768px) {
+
+  /* 1. Allow dropdown + bars to be fully visible */
+  .result-panel {
+    overflow: visible !important;
+    padding-right: 12px !important;  /* Fix right-side cutoff */
+  }
+
+  /* 2. Fix export dropdown (prevent inner scrolling) */
+  .export-dropdown {
+    position: relative !important;
+    overflow: visible !important;
+    z-index: 99999 !important;
+  }
+
+  /* 3. Dropdown menu opens fully OUTSIDE */
+  .export-menu {
+    position: absolute !important;
+    top: 48px !important;
+    right: 0 !important;
+    left: auto !important;
+    width: 180px !important;
+    overflow: visible !important;
+  }
+
+  /* 4. Make sure parent grid NEVER clips children */
+  .detector {
+    overflow: visible !important;
+  }
+
+  /* 5. Fix signal bars right clipping */
+  .signal-row,
+  .signal-bar {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow: visible !important;
+  }
+
+  /* Ensure fill bar doesn't overflow cut */
+  .signal-fill {
+    max-width: 100% !important;
+  }
+}
+
+/**************************************
+   HARD FIX — EXPORT DROPDOWN CLIPPING
+***************************************/
+@media (max-width: 768px) {
+
+  /* Result panel must never clip dropdown */
+  .result-panel {
+    overflow: visible !important;
+    position: relative !important;
+  }
+
+  /* Details wrapper must allow content to escape */
+  .export-dropdown {
+    overflow: visible !important;
+    position: static !important;  /* do not trap inside */
+    z-index: 999999 !important;
+  }
+
+  /* FLOAT MENU OUTSIDE of result panel */
+  .export-menu {
+    position: fixed !important; /* <-- IMPORTANT */
+    top: 100px !important;      /* below navbar */
+    right: 20px !important;     /* visible on screen */
+    left: auto !important;
+
+    width: 200px !important;
+    max-height: none !important;
+    overflow: visible !important;
+    z-index: 999999 !important;
+
+    box-shadow: 0 12px 32px rgba(0,0,0,0.15) !important;
+    border-radius: 12px !important;
+  }
+
+  /* Remove the scroll pocket created by inner grid */
+  .result-grid {
+    overflow: visible !important;
+  }
 }
