@@ -1,0 +1,83 @@
+# =========================
+# PYTHON
+# =========================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+.eggs/
+build/
+dist/
+.env
+.venv
+venv/
+ENV/
+
+# Python test / cache
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Jupyter
+.ipynb_checkpoints/
+
+
+# =========================
+# NODE / FRONTEND
+# =========================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Production build
+build/
+dist/
+
+
+# =========================
+# OS FILES
+# =========================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+
+# =========================
+# IDE / EDITORS
+# =========================
+.vscode/
+.idea/
+*.swp
+*.swo
+
+
+# =========================
+# LOGS
+# =========================
+*.log
+
+
+# =========================
+# MODEL / DATA FILES (optional - uncomment if large)
+# =========================
+# *.pt
+# *.h5
+# *.onnx
+# *.pkl
+# *.joblib
+# data/
+
+
+# =========================
+# MISC
+# =========================
+.cache/
+tmp/
+
+# ======== LARGE MODEL CHECKPOINTS (DO NOT TRACK) ========
+backend/models/tinybert/checkpoint-*/
